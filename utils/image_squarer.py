@@ -1,5 +1,6 @@
 from PIL import Image
 
+
 def crop_to_square(image_path, output_path):
 	# Open the image
 	img = Image.open(image_path)
@@ -21,6 +22,6 @@ def crop_to_square(image_path, output_path):
 	img_cropped.save(output_path)
 	print(f"Cropped image saved to {output_path}")
 
-# Example usage
+
 if __name__ == '__main__':
 	crop_to_square("input.jpg", "output.jpg")
