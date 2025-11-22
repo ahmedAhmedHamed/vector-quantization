@@ -1,28 +1,29 @@
 import gradio as gr
+from typing import Tuple
 from backend import run_operation
 """
 run the run_with_watch.py script instead.
 """
 
 
-def build_operation_selector():
+def build_operation_selector() -> gr.Radio:
     return gr.Radio(
         ["Compression", "Decompression"],
         label="Select Operation"
     )
 
 
-def build_image_input():
+def build_image_input() -> gr.Image:
     return gr.Image(type="pil", label="Input Image")
 
 
-def build_block_size_inputs():
+def build_block_size_inputs() -> Tuple[gr.Number, gr.Number]:
     block_w = gr.Number(label="Block Width", value=8)
     block_h = gr.Number(label="Block Height", value=8)
     return block_w, block_h
 
 
-def build_outputs():
+def build_outputs() -> Tuple[gr.Image, gr.Textbox, gr.Number, gr.Image]:
     compressed_img_out = gr.Image(label="Compressed Image (placeholder)")
     codebook_out = gr.Textbox(label="Codebook File Content (placeholder)")
     ratio_out = gr.Number(label="Compression Ratio (placeholder)")
@@ -33,7 +34,7 @@ def build_outputs():
 # -------------------------------
 # Assemble the full interface
 # -------------------------------
-def create_interface():
+def create_interface() -> gr.Blocks:
     with gr.Blocks() as blocks:
 
         gr.Markdown("## Image Compression/Decompression I/O Demo")

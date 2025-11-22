@@ -1,16 +1,16 @@
 import subprocess
 import os
+from typing import List
 """
 Made this script because I prefer pressing the 'start' button on the IDE
 rather than manually typing gradio frontend.py on my terminal each time.
 """
 
 
-def main():
-    app_path = os.path.abspath("frontend.py")
+def main() -> None:
+    app_path: str = os.path.abspath("frontend.py")
 
-    # Command to run Gradio in reload mode
-    cmd = ["gradio", app_path]
+    cmd: List[str] = ["gradio", app_path]
 
     print("Command:", " ".join(cmd))
 
