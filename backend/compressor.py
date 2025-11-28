@@ -32,7 +32,7 @@ class VectorQuantizer:
         return blocks
 
     # convert every image block to an array of numbers
-    def __blocks_to_vectors(self, blocks):
+    def __blocks_to_vectors(self, blocks) -> List[np.ndarray]:
         flattened_vectors = []
         for block in blocks:
             block_vector = np.asarray(block)
@@ -40,15 +40,20 @@ class VectorQuantizer:
             flattened_vectors.append(flat_vector)
         return flattened_vectors
 
-    def __create_first_level(self, vectors: List[np.ndarray]) -> List[Union[int, float]]:
-        # convert the flatened amtric to a 2-d array
-        matrix = np.array(vector)
+    def __create_first_level(self, vectors: List[np.ndarray]) -> np.ndarray:
+        """
+        Given all flattened image block vectors, compute the first centroid:
+        The mean of all vectors.
+        """
 
-        #calculate the mean across the the rows (i-th element of every row)
-        code_vector_array = np.mean(matrix, axis=0)
+        # Convert list of vectors → matrix (N vectors × vector_length)
+        matrix = np.vstack(vectors)
 
-        # convert the the NumPy array to a python list of (floats)
-        return code_vector_array.tolist()
+        #calculate the mean across the the rows (axis=0)(i-th element of every row)
+        centroid = np.mean(matrix, axis=0)
+
+        # Return centroid as a NumPy vector
+        return centroid
 
 
     # splits every vector in the previous level into two new vectors (floor and ceiling).
@@ -62,13 +67,116 @@ class VectorQuantizer:
             new_level_blocks.append(new_level2)
         return new_level_blocks
 
-    def compress(self, img: Image.Image, block_w: Union[int, float],
-                 block_h: Union[int, float], amount_of_levels: int) -> List[Image.Image, dict]:
-        ret = None
+
+    # Assign each image vector to the nearest vector in the codebook.
+    # Returns: A list of indices corresponding to the assigned code vector for each image_vector.
+    def __assign_blocks_to_codebook(
+        self, 
+        image_vectors: List[np.ndarray], 
+        codebook: List[np.ndarray]
+    ) -> List[int]:
+
+        assignments = []
+        
+        # Loop through each individual image vector (Flattened image block)(A)
+        for A in image_vectors:
+
+            differences_matrix = []
+            
+            for C in codebook:  # iterate over every code to get the absolute differnce (distance) between it and the image vector
+                difference = A - C
+                absolutediff = np.abs(difference)
+                sum = np.sum(absolutediff)
+                differences_matrix.append(sum)
+            
+            # find the centroid index with minimum distance
+            best_code_index = np.argmin(differences_matrix)
+
+            assignments.append(best_code_index)
+
+            
+        return assignments  # assignments[i] is the codebook index for image_vectors[i]
+
+        # Function idea: Recalculate Codebook
+    
+    
+    def __recalculate_codebook(
+        self, 
+        image_vectors: List[np.ndarray], 
+        assignments: List[int], 
+        old_codebook: List[np.ndarray],
+        codebook_size: int
+    ) -> List[np.ndarray]:
+        
+        # a list of empty lists. one list per code vector
+        grouped_vectors = [[] for _ in range(codebook_size)]        
+
+        # Fill each group with the blocks assigned to that centroid
+        for vector, centroid_index in zip(image_vectors, assignments):
+            grouped_vectors[centroid_index].append(vector)
+
+        new_codebook = []
+
+        # recalculate each centroid
+
+        for i in range(codebook_size):
+
+            # if no image vector was assigned to this centroid, keep the old 
+            if len(grouped_vectors) == 0:
+                new_codebook.append(old_codebook[i])
+                continue
+
+            # compute the mean of all vectors in this group
+
+            group = grouped_vectors[i]
+
+            sum_vector = np.zeros_like(group[0])
+
+            for v in group:
+                sum_vector += v
+
+            average_vector = sum_vector / len(group)
+
+            new_codebook.append(average_vector)
+
+
+        return new_codebook
+   
+
+    def compress(
+        self, 
+        img: Image.Image, 
+        block_w: Union[int, float],
+        block_h: Union[int, float], 
+        amount_of_levels: int
+        ):
+        
+
         source_image_blocks = self.__split_image_into_blocks(img, block_w, block_h)
-        current_level = self.__create_first_level(source_image_blocks)
-        amount_of_levels -= 1
-        while amount_of_levels:
-            amount_of_levels -= 1
-            current_level = self.__create_new_level(source_image_blocks, current_level)
-        return ret
+
+        image_vectors = self.__blocks_to_vectors(source_image_blocks)
+
+        first_centroid = self.__create_first_level(image_vectors)
+        codebook = [np.array(first_centroid)]
+
+        size = 2 ** amount_of_levels
+        while len(codebook) < size:
+            codebook = self.__create_new_level(codebook)
+
+
+        # iterate LBG refinement
+        for _ in range(15): # usually needs from 10 to 30 iterations to get the the final codes
+            assignments = self.__assign_blocks_to_codebook(image_vectors, codebook)
+            codebook = self.__recalculate_codebook(image_vectors, assignments, len(codebook))
+        
+
+        return codebook , assignments, block_w, block_h
+
+
+    def decompess(self, codebook: List[np.ndarray], assignments: List[int], block_w, block_H):
+        """
+        we have codebook and assingments 
+        
+        1- 
+        """
+        pass
