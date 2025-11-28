@@ -27,18 +27,18 @@ def build_image_input() -> gr.Image:
     return gr.Image(type="pil", label="Input Image")
 
 
-def build_block_size_inputs() -> Tuple[gr.Number, gr.Number]:
+def build_block_size_inputs() -> Tuple[gr.Number, gr.Number, gr.Number]:
     block_w = gr.Number(label="Block Width", value=8)
     block_h = gr.Number(label="Block Height", value=8)
-    return block_w, block_h
+    amount_of_levels = gr.Number(label="Codebook Levels", value=6, info="2^levels = codebook size")
+    return block_w, block_h, amount_of_levels
 
 
-def build_outputs() -> Tuple[gr.Image, gr.Textbox, gr.Number, gr.Image]:
-    compressed_img_out = gr.Image(label="Compressed Image (placeholder)")
-    codebook_out = gr.Textbox(label="Codebook File Content (placeholder)")
-    ratio_out = gr.Number(label="Compression Ratio (placeholder)")
-    decompressed_img_out = gr.Image(label="Decompressed Image (placeholder)")
-    return compressed_img_out, codebook_out, ratio_out, decompressed_img_out
+def build_outputs() -> Tuple[gr.Textbox, gr.Number, gr.Image]:
+    codebook_out = gr.Textbox(label="Codebook Information")
+    ratio_out = gr.Number(label="Compression Ratio")
+    decompressed_img_out = gr.Image(label="Decompressed Image")
+    return codebook_out, ratio_out, decompressed_img_out
 
 
 # -------------------------------
@@ -56,7 +56,7 @@ def create_interface() -> gr.Blocks:
             input_img = build_image_input()
 
         with gr.Row():
-            block_w, block_h = build_block_size_inputs()
+            block_w, block_h, amount_of_levels = build_block_size_inputs()
 
         run_button = gr.Button("Run")
 
@@ -64,7 +64,6 @@ def create_interface() -> gr.Blocks:
         gr.Markdown("### Outputs")
 
         (
-            compressed_img_out,
             codebook_out,
             ratio_out,
             decompressed_img_out
@@ -72,9 +71,8 @@ def create_interface() -> gr.Blocks:
 
         run_button.click(
             fn=run_operation,
-            inputs=[operation, input_img, block_w, block_h],
+            inputs=[operation, input_img, block_w, block_h, amount_of_levels],
             outputs=[
-                compressed_img_out,
                 codebook_out,
                 ratio_out,
                 decompressed_img_out
