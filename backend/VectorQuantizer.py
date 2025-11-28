@@ -180,6 +180,7 @@ class VectorQuantizer:
             ret.append(codebook[assignment])
         return ret
 
+
 if __name__ == '__main__':
 
     """
