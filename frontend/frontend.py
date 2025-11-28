@@ -35,7 +35,7 @@ def build_block_size_inputs() -> Tuple[gr.Number, gr.Number, gr.Number]:
 
 
 def build_outputs() -> Tuple[gr.Textbox, gr.Number, gr.Image]:
-    codebook_out = gr.Textbox(label="Codebook Information")
+    codebook_out = gr.Textbox(label="Codebook Information", lines=10)
     ratio_out = gr.Number(label="Compression Ratio")
     decompressed_img_out = gr.Image(label="Decompressed Image")
     return codebook_out, ratio_out, decompressed_img_out
