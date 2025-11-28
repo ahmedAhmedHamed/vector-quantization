@@ -75,26 +75,23 @@ class VectorQuantizer:
         image_vectors: List[np.ndarray], 
         codebook: List[np.ndarray]
     ) -> List[int]:
-
-        assignments = []
+        # Vectorized implementation for much better performance
+        # Convert to numpy arrays for vectorization
+        image_matrix = np.array(image_vectors)  # Shape: (num_blocks, vector_dim)
+        codebook_matrix = np.array(codebook)    # Shape: (codebook_size, vector_dim)
         
-        # Loop through each individual image vector (Flattened image block)(A)
-        for A in image_vectors:
-
-            differences_matrix = []
-            
-            for C in codebook:  # iterate over every code to get the absolute differnce (distance) between it and the image vector
-                difference = A - C
-                absolutediff = np.abs(difference)
-                sum = np.sum(absolutediff)
-                differences_matrix.append(sum)
-            
-            # find the centroid index with minimum distance
-            best_code_index = np.argmin(differences_matrix)
-
-            assignments.append(best_code_index)
-
-            
+        # Compute all pairwise distances using broadcasting
+        # image_matrix: (num_blocks, 1, vector_dim)
+        # codebook_matrix: (1, codebook_size, vector_dim)
+        # Result: (num_blocks, codebook_size, vector_dim)
+        differences = np.abs(image_matrix[:, np.newaxis, :] - codebook_matrix[np.newaxis, :, :])
+        
+        # Sum over vector dimension to get L1 distances: (num_blocks, codebook_size)
+        distances = np.sum(differences, axis=2)
+        
+        # Find minimum distance index for each block
+        assignments = np.argmin(distances, axis=1).tolist()
+        
         return assignments  # assignments[i] is the codebook index for image_vectors[i]
 
         # Function idea: Recalculate Codebook
@@ -107,40 +104,26 @@ class VectorQuantizer:
         old_codebook: List[np.ndarray],
         codebook_size: int
     ) -> List[np.ndarray]:
+        # Vectorized implementation for better performance
+        image_matrix = np.array(image_vectors)  # Shape: (num_blocks, vector_dim)
+        assignments_array = np.array(assignments)  # Shape: (num_blocks,)
         
-        # a list of empty lists. one list per code vector
-        grouped_vectors = [[] for _ in range(codebook_size)]        
-
-        # Fill each group with the blocks assigned to that centroid
-        for vector, centroid_index in zip(image_vectors, assignments):
-            grouped_vectors[centroid_index].append(vector)
-
         new_codebook = []
-
-        # recalculate each centroid
-
+        
         for i in range(codebook_size):
-            
-            group = grouped_vectors[i]
+            # Find all vectors assigned to this centroid
+            mask = assignments_array == i
             
             # if no image vector was assigned to this centroid, keep the old 
-            if len(group) == 0:
+            if not np.any(mask):
                 new_codebook.append(old_codebook[i])
                 continue
 
-            # compute the mean of all vectors in this group
-
-           
-
-            sum_vector = np.zeros_like(group[0])
-
-            for v in group:
-                sum_vector += v
-
-            average_vector = sum_vector / len(group)
-
+            # Compute the mean of all vectors in this group using vectorized operations
+            assigned_vectors = image_matrix[mask]  # Shape: (num_assigned, vector_dim)
+            average_vector = np.mean(assigned_vectors, axis=0)
+            
             new_codebook.append(average_vector)
-
 
         return new_codebook
    
