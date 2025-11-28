@@ -1,6 +1,16 @@
+import sys
+import os
+
+# Add the project root to PYTHONPATH
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
 import gradio as gr
 from typing import Tuple
-from backend import run_operation
+from backend.backend import run_operation
+
+
 """
 run the run_with_watch.py script instead.
 """

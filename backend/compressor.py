@@ -1,4 +1,5 @@
 from typing import Union, Optional, List
+import numpy as np
 
 from PIL import Image
 
@@ -30,15 +31,36 @@ class VectorQuantizer:
 
         return blocks
 
-    def __create_first_level(self, source_image_blocks: List[Image.Image]) -> List[Image.Image]:
-        pass
+    # convert every image block to an array of numbers
+    def __blocks_to_vectors(self, blocks):
+        flattened_vectors = []
+        for block in blocks:
+            block_vector = np.asarray(block)
+            flat_vector = block_vector.flatten()
+            flattened_vectors.append(flat_vector)
+        return flattened_vectors
 
-    def __create_new_level(self, source_image_blocks: List[Image.Image],
-                         previous_level_blocks: List[Image.Image]) -> List[Image.Image]:
-        """
-        takes the level before it and the source image blocks and creates one more level.
-        """
-        pass
+    def __create_first_level(self, vectors: List[np.ndarray]) -> List[Union[int, float]]:
+        # convert the flatened amtric to a 2-d array
+        matrix = np.array(vector)
+
+        #calculate the mean across the the rows (i-th element of every row)
+        code_vector_array = np.mean(matrix, axis=0)
+
+        # convert the the NumPy array to a python list of (floats)
+        return code_vector_array.tolist()
+
+
+    # splits every vector in the previous level into two new vectors (floor and ceiling).
+    def __create_new_level(self, previous_level_blocks: List[np.ndarray]) -> List[np.ndarray]:
+        new_level_blocks = []
+        for block in previous_level_blocks: # for example: block ->[6.9 7.6 5.2 8.3]
+            new_level1 = np.floor(block)    # split to  be [6 7 5 8] and [7 8 6 9]
+            new_level2 = np.ceil(block)
+
+            new_level_blocks.append(new_level1)
+            new_level_blocks.append(new_level2)
+        return new_level_blocks
 
     def compress(self, img: Image.Image, block_w: Union[int, float],
                  block_h: Union[int, float], amount_of_levels: int) -> List[Image.Image, dict]:
