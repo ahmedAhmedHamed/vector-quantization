@@ -6,7 +6,6 @@ from PIL import Image
 
 class VectorQuantizer:
 
-    @staticmethod
     def __split_image_into_blocks(self, img: Image.Image, block_w: Union[int, float],
                                   block_h: Union[int, float]) -> List[Image.Image]:
         if img is None:
@@ -32,27 +31,21 @@ class VectorQuantizer:
         return blocks
 
     # convert every image block to an array of numbers
+    # made it not flatten.
     def __blocks_to_vectors(self, blocks):
-        flattened_vectors = []
+        vectors = []
         for block in blocks:
             block_vector = np.asarray(block)
-            flat_vector = block_vector.flatten()
-            flattened_vectors.append(flat_vector)
-        return flattened_vectors
+            vectors.append(block_vector)
+        return vectors
 
     def __create_first_level(self, vectors: List[np.ndarray]) -> List[Union[int, float]]:
-        # convert the flatened amtric to a 2-d array
-        matrix = np.array(vector)
-
-        #calculate the mean across the the rows (i-th element of every row)
-        code_vector_array = np.mean(matrix, axis=0)
-
-        # convert the the NumPy array to a python list of (floats)
+        code_vector_array = np.mean(vectors, axis=0)
         return code_vector_array.tolist()
 
 
     # splits every vector in the previous level into two new vectors (floor and ceiling).
-    def __create_new_level(self, previous_level_blocks: List[np.ndarray]) -> List[np.ndarray]:
+    def __create_new_level(self, previous_level_blocks: List[np.ndarray], current_level) -> List[np.ndarray]:
         new_level_blocks = []
         for block in previous_level_blocks: # for example: block ->[6.9 7.6 5.2 8.3]
             new_level1 = np.floor(block)    # split to  be [6 7 5 8] and [7 8 6 9]
@@ -63,12 +56,38 @@ class VectorQuantizer:
         return new_level_blocks
 
     def compress(self, img: Image.Image, block_w: Union[int, float],
-                 block_h: Union[int, float], amount_of_levels: int) -> List[Image.Image, dict]:
+                 block_h: Union[int, float], amount_of_levels: int) -> List[Image.Image]:
         ret = None
         source_image_blocks = self.__split_image_into_blocks(img, block_w, block_h)
+        vectors = self.__blocks_to_vectors(source_image_blocks)
+        print(vectors)
+        print('-' * 50)
         current_level = self.__create_first_level(source_image_blocks)
+        print(current_level)
         amount_of_levels -= 1
         while amount_of_levels:
             amount_of_levels -= 1
             current_level = self.__create_new_level(source_image_blocks, current_level)
         return ret
+
+
+if __name__ == '__main__':
+    data = np.array([
+        [1, 2], [3, 4],
+        [7, 9], [6, 6],
+        [4, 9], [10, 10],
+        [15, 14], [20, 18],
+        [4, 3], [4, 5],
+        [17, 16], [18, 18],
+        [4, 11], [12, 12],
+        [9, 9], [8, 8],
+        [1, 4], [5, 6],
+    ], dtype=np.uint8)
+
+    img = Image.fromarray(data)
+
+    block_w = 2
+    block_h = 2
+    amount_of_levels = 3
+
+    result = VectorQuantizer().compress(img, block_w, block_h, amount_of_levels)
