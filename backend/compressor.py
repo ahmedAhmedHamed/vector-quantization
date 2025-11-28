@@ -6,7 +6,7 @@ from PIL import Image
 
 class VectorQuantizer:
 
-    @staticmethod
+    
     def __split_image_into_blocks(self, img: Image.Image, block_w: Union[int, float],
                                   block_h: Union[int, float]) -> List[Image.Image]:
         if img is None:
@@ -120,15 +120,17 @@ class VectorQuantizer:
         # recalculate each centroid
 
         for i in range(codebook_size):
-
+            
+            group = grouped_vectors[i]
+            
             # if no image vector was assigned to this centroid, keep the old 
-            if len(grouped_vectors) == 0:
+            if len(group) == 0:
                 new_codebook.append(old_codebook[i])
                 continue
 
             # compute the mean of all vectors in this group
 
-            group = grouped_vectors[i]
+           
 
             sum_vector = np.zeros_like(group[0])
 
@@ -167,16 +169,56 @@ class VectorQuantizer:
         # iterate LBG refinement
         for _ in range(15): # usually needs from 10 to 30 iterations to get the the final codes
             assignments = self.__assign_blocks_to_codebook(image_vectors, codebook)
-            codebook = self.__recalculate_codebook(image_vectors, assignments, len(codebook))
+            codebook = self.__recalculate_codebook(image_vectors, assignments, codebook, len(codebook))
         
 
-        return codebook , assignments, block_w, block_h
+        return codebook , assignments
 
 
-    def decompess(self, codebook: List[np.ndarray], assignments: List[int], block_w, block_H):
-        """
-        we have codebook and assingments 
+if __name__ == '__main__':
+
+    """
+        [1, 2], [3, 4],
+        [7, 9], [6, 6],
+        [4, 9], [10, 10],
+        [15, 14], [20, 18],
+        [4, 3], [4, 5],
+        [17, 16], [18, 18],
+        [4, 11], [12, 12],
+        [9, 9], [8, 8],
+        [1, 4], [5, 6],
+    """
+
+    data = np.array([
+        [ 1,  2,  7,  9,  4, 11],
+        [ 3,  4,  6,  6, 12, 12],
+        [ 4,  9, 15, 14,  9,  9],
+        [10, 10, 20, 18,  8,  8],
+        [ 4,  3, 17, 16,  1,  4],
+        [ 4,  5, 18, 18,  5,  6]
+    ], dtype=np.uint8)
+
+    img = Image.fromarray(data)
+
+    block_w = 2
+    block_h = 2
+    amount_of_levels = 2
+
+    codebook, assignments = VectorQuantizer().compress(img, block_w, block_h, amount_of_levels)
+
+    print("--- VQ Compression Results (Lecture Example) ---")
+    print(f"Original Image Size: {img.size}")
+    print(f"Vector Block Size: {block_w}x{block_h}")
+    print(f"Target Codebook Size (2^levels): {2**amount_of_levels}")
+    print(f"Final Codebook Size: {len(codebook)}")
+    print(f"Total Blocks Assigned: {len(assignments)}")
+    
+    print("\nFinal Codebook (Centroids):")
+    for i, c in enumerate(codebook):
+        print(f"  C{i+1}: {c.round(2)}") # Rounding for cleaner output
         
-        1- 
-        """
-        pass
+    print("\nFinal Assignments (Index for Blocks 1-9):")
+    # Add 1 to indices for human readability if codebook indices are 0-based
+    readable_assignments = [int(a) + 1 for a in assignments]
+    print(f"  {readable_assignments}")
+
