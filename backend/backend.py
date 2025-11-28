@@ -1,10 +1,146 @@
-from typing import Tuple, Optional, Union, List
+from typing import Tuple, Optional, Union, List, Dict
 import numpy as np
 from PIL import Image
 from backend.VectorQuantizer import VectorQuantizer
 import math
+import tempfile
+import os
+import uuid
 
 quantizer = VectorQuantizer()
+
+
+def save_compressed_data(
+    codebook: List[np.ndarray],
+    assignments: List[int],
+    img_width: int,
+    img_height: int,
+    block_w: Union[int, float],
+    block_h: Union[int, float],
+    filepath: str
+) -> str:
+    """
+    Save compressed data (codebook, assignments, and metadata) to a .vq file (NumPy .npz format).
+    
+    Args:
+        codebook: List of codebook vectors
+        assignments: List of assignment indices
+        img_width: Original image width
+        img_height: Original image height
+        block_w: Block width used
+        block_h: Block height used
+        filepath: Path where to save the file
+    
+    Returns:
+        The filepath where the file was saved
+    """
+    # Validate inputs
+    if len(codebook) == 0:
+        raise ValueError("Codebook is empty")
+    if len(assignments) == 0:
+        raise ValueError("Assignments list is empty")
+    
+    # Convert codebook list to numpy array
+    codebook_array = np.array(codebook)
+    
+    # Convert assignments to numpy array
+    assignments_array = np.array(assignments, dtype=np.int32)
+    
+    # Ensure the directory exists and is writable
+    file_dir = os.path.dirname(filepath)
+    if file_dir and not os.path.exists(file_dir):
+        os.makedirs(file_dir, exist_ok=True)
+    
+    # Convert to absolute path to avoid any path issues
+    filepath = os.path.abspath(filepath)
+    
+    # Save to .npz file using a file handle to ensure proper writing
+    try:
+        # Check if we can write to the directory first
+        dir_to_check = file_dir if file_dir else os.path.dirname(filepath) or '.'
+        if not os.path.exists(dir_to_check):
+            os.makedirs(dir_to_check, exist_ok=True)
+        if not os.access(dir_to_check, os.W_OK):
+            raise PermissionError(f"Cannot write to directory: {dir_to_check}")
+        
+        # Remove file if it exists (from previous failed attempts)
+        if os.path.exists(filepath):
+            try:
+                os.remove(filepath)
+            except:
+                pass
+        
+        # Use file handle with np.savez to ensure data is written
+        with open(filepath, 'wb') as f:
+            np.savez(
+                f,
+                codebook=codebook_array,
+                assignments=assignments_array,
+                img_width=int(img_width),
+                img_height=int(img_height),
+                block_w=int(block_w),
+                block_h=int(block_h)
+            )
+            # Explicitly flush to ensure data is written
+            f.flush()
+            os.fsync(f.fileno())  # Force write to disk on Windows
+    except PermissionError:
+        raise
+    except OSError as e:
+        raise RuntimeError(f"OS error saving to {filepath}: {str(e)}")
+    except Exception as e:
+        # Clean up partial file if it exists
+        if os.path.exists(filepath):
+            try:
+                os.remove(filepath)
+            except:
+                pass
+        raise RuntimeError(f"Failed to save compressed data to {filepath}: {type(e).__name__}: {str(e)}")
+    
+    # Verify the file was written and has content
+    if not os.path.exists(filepath):
+        raise RuntimeError(f"File was not created at {filepath} after np.savez call")
+    
+    file_size = os.path.getsize(filepath)
+    if file_size == 0:
+        raise RuntimeError(f"File was created but is empty at {filepath}")
+    
+    return filepath
+
+
+def load_compressed_data(filepath: str) -> Dict[str, Union[np.ndarray, int]]:
+    """
+    Load compressed data from a .vq file (NumPy .npz format).
+    
+    Args:
+        filepath: Path to the .vq file
+    
+    Returns:
+        Dictionary containing:
+            - codebook: numpy array of codebook vectors
+            - assignments: numpy array of assignment indices
+            - img_width: original image width
+            - img_height: original image height
+            - block_w: block width used
+            - block_h: block height used
+    """
+    data = np.load(filepath)
+    
+    # Convert codebook array back to list of numpy arrays
+    codebook_array = data['codebook']
+    codebook = [codebook_array[i] for i in range(len(codebook_array))]
+    
+    # Get assignments as list
+    assignments = data['assignments'].tolist()
+    
+    return {
+        'codebook': codebook,
+        'assignments': assignments,
+        'img_width': int(data['img_width']),
+        'img_height': int(data['img_height']),
+        'block_w': int(data['block_w']),
+        'block_h': int(data['block_h'])
+    }
 
 
 def reconstruct_image(
@@ -57,7 +193,7 @@ def compress_image(
         block_w: Union[int, float],
         block_h: Union[int, float],
         amount_of_levels: int
-) -> Tuple[Optional[Image.Image], str, float]:
+) -> Tuple[Optional[Image.Image], str, float, Optional[str]]:
     if img is None:
         raise ValueError('no img in compress img')
 
@@ -74,6 +210,28 @@ def compress_image(
     # Reconstruct image from decompressed vectors
     img_width, img_height = img.size
     decompressed_img = reconstruct_image(decompressed_vectors, img_width, img_height, block_w, block_h)
+    
+    # Save compressed data to a temporary file
+    # Generate a unique filename in the temp directory and let np.savez create it
+    temp_dir = tempfile.gettempdir()
+    temp_filename = 'compressed_' + str(uuid.uuid4()) + '.vq'
+    temp_file_path = os.path.join(temp_dir, temp_filename)
+    
+    compressed_file_path = save_compressed_data(
+        codebook, assignments, img_width, img_height, block_w, block_h, temp_file_path
+    )
+    
+    # Verify file was created and has content (save_compressed_data already checks this, but double-check)
+    if not os.path.exists(compressed_file_path):
+        raise RuntimeError(f"Failed to create compressed file at {compressed_file_path}")
+    
+    # Check file size to ensure it's not empty
+    file_size = os.path.getsize(compressed_file_path)
+    if file_size == 0:
+        raise RuntimeError(f"Compressed file was created but is empty at {compressed_file_path}")
+    
+    # Ensure we return an absolute path for Gradio
+    compressed_file_path = os.path.abspath(compressed_file_path)
     
     # Calculate compression ratio
     # Original size: width * height * 1 byte per pixel (grayscale)
@@ -119,40 +277,68 @@ First 3 Codebook Entries (sample):
     for i in range(min(3, len(codebook))):
         codebook_text += f"  Entry {i}: {codebook[i][:min(8, len(codebook[i]))].round(2).tolist()}...\n"
     
-    return decompressed_img, codebook_text, compression_ratio
+    return decompressed_img, codebook_text, compression_ratio, compressed_file_path
 
 
 def decompress_image(
-        img: Optional[Image.Image],
-        codebook
+        compressed_file_path: Optional[str]
 ) -> Optional[Image.Image]:
-    return img
+    """
+    Decompress an image from a .vq file.
+    
+    Args:
+        compressed_file_path: Path to the .vq file containing compressed data
+    
+    Returns:
+        Decompressed PIL Image, or None if file_path is None
+    """
+    if compressed_file_path is None:
+        return None
+    
+    # Load compressed data from file
+    data = load_compressed_data(compressed_file_path)
+    codebook = data['codebook']
+    assignments = data['assignments']
+    img_width = data['img_width']
+    img_height = data['img_height']
+    block_w = data['block_w']
+    block_h = data['block_h']
+    
+    # Decompress using quantizer
+    decompressed_vectors = quantizer.decompress(codebook, assignments)
+    
+    # Reconstruct image from decompressed vectors
+    decompressed_img = reconstruct_image(decompressed_vectors, img_width, img_height, block_w, block_h)
+    
+    return decompressed_img
 
 
 def run_operation(
         operation: str,
-        img: Optional[Image.Image],
+        img: Optional[Image.Image] = None,
+        compressed_file: Optional[str] = None,
         block_w: Union[int, float] = None,
         block_h: Union[int, float] = None,
-        amount_of_levels: Union[int, float] = None,
-        codebook=None
-) -> Tuple[Optional[str], Optional[float], Optional[Image.Image]]:
+        amount_of_levels: Union[int, float] = None
+) -> Tuple[Optional[str], Optional[float], Optional[Image.Image], Optional[str]]:
     if operation == "Compression":
         if amount_of_levels is None:
             amount_of_levels = 6  # Default value
         amount_of_levels = int(amount_of_levels)
-        decompressed_img, codebook_text, ratio = compress_image(img, block_w, block_h, amount_of_levels)
+        decompressed_img, codebook_text, ratio, compressed_file_path = compress_image(img, block_w, block_h, amount_of_levels)
         return (
             codebook_text,
             ratio,
-            decompressed_img
+            decompressed_img,
+            compressed_file_path
         )
     elif operation == "Decompression":
-        decompressed = decompress_image(img, codebook, "CODEBOOK_PLACEHOLDER")
+        decompressed = decompress_image(compressed_file)
         return (
             None,
             None,
-            decompressed
+            decompressed,
+            None
         )
     else:
-        return None, None, None
+        return None, None, None, None
