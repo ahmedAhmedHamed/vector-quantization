@@ -151,7 +151,7 @@ class VectorQuantizer:
         block_w: Union[int, float],
         block_h: Union[int, float], 
         amount_of_levels: int
-        ):
+        ) -> tuple[List[np.ndarray], List[int]]:
         
 
         source_image_blocks = self.__split_image_into_blocks(img, block_w, block_h)
@@ -174,6 +174,11 @@ class VectorQuantizer:
 
         return codebook , assignments
 
+    def decompress(self, codebook: List[np.ndarray], assignments: List[int]):
+        ret = []
+        for assignment in assignments:
+            ret.append(codebook[assignment])
+        return ret
 
 if __name__ == '__main__':
 
