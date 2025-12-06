@@ -11,17 +11,17 @@ quantizer = VectorQuantizer()
 
 
 def save_compressed_data(
-    codebook: List[np.ndarray],
-    assignments: List[int],
-    img_width: int,
-    img_height: int,
-    block_w: Union[int, float],
-    block_h: Union[int, float],
-    filepath: str
+        codebook: List[np.ndarray],
+        assignments: List[int],
+        img_width: int,
+        img_height: int,
+        block_w: Union[int, float],
+        block_h: Union[int, float],
+        filepath: str
 ) -> str:
     """
     Save compressed data (codebook, assignments, and metadata) to a .vq file (NumPy .npz format).
-    
+
     Args:
         codebook: List of codebook vectors
         assignments: List of assignment indices
@@ -30,7 +30,7 @@ def save_compressed_data(
         block_w: Block width used
         block_h: Block height used
         filepath: Path where to save the file
-    
+
     Returns:
         The filepath where the file was saved
     """
@@ -39,21 +39,21 @@ def save_compressed_data(
         raise ValueError("Codebook is empty")
     if len(assignments) == 0:
         raise ValueError("Assignments list is empty")
-    
+
     # Convert codebook list to numpy array
     codebook_array = np.array(codebook)
-    
+
     # Convert assignments to numpy array
-    assignments_array = np.array(assignments, dtype=np.int32)
-    
+    assignments_array = np.asarray(assignments, dtype=np.uint8)
+
     # Ensure the directory exists and is writable
     file_dir = os.path.dirname(filepath)
     if file_dir and not os.path.exists(file_dir):
         os.makedirs(file_dir, exist_ok=True)
-    
+
     # Convert to absolute path to avoid any path issues
     filepath = os.path.abspath(filepath)
-    
+
     # Save to .npz file using a file handle to ensure proper writing
     try:
         # Check if we can write to the directory first
@@ -62,14 +62,14 @@ def save_compressed_data(
             os.makedirs(dir_to_check, exist_ok=True)
         if not os.access(dir_to_check, os.W_OK):
             raise PermissionError(f"Cannot write to directory: {dir_to_check}")
-        
+
         # Remove file if it exists (from previous failed attempts)
         if os.path.exists(filepath):
             try:
                 os.remove(filepath)
             except:
                 pass
-        
+
         # Use file handle with np.savez to ensure data is written
         with open(filepath, 'wb') as f:
             np.savez(
@@ -96,15 +96,15 @@ def save_compressed_data(
             except:
                 pass
         raise RuntimeError(f"Failed to save compressed data to {filepath}: {type(e).__name__}: {str(e)}")
-    
+
     # Verify the file was written and has content
     if not os.path.exists(filepath):
         raise RuntimeError(f"File was not created at {filepath} after np.savez call")
-    
+
     file_size = os.path.getsize(filepath)
     if file_size == 0:
         raise RuntimeError(f"File was created but is empty at {filepath}")
-    
+
     return filepath
 
 
@@ -131,8 +131,9 @@ def load_compressed_data(filepath: str) -> Dict[str, Union[np.ndarray, int]]:
     codebook = [codebook_array[i] for i in range(len(codebook_array))]
     
     # Get assignments as list
-    assignments = data['assignments'].tolist()
-    
+    assignments = data['assignments']
+    print(assignments[0])
+    print(type(assignments))
     return {
         'codebook': codebook,
         'assignments': assignments,
