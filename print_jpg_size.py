@@ -23,7 +23,7 @@ def get_uncompressed_size(image_path):
 
 if __name__ == "__main__":
 
-    image_path = r"C:\gitcloned\vector-quantization\original_images\cameraman.jpg"
+    image_path = r".\original_images\cameraman.jpg"
     size = get_uncompressed_size(image_path)
     print(f"Uncompressed size: {size:,} bytes ({size / (1024*1024):.2f} MB)")
 

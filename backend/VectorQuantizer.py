@@ -2,6 +2,7 @@ from typing import Union, Optional, List
 import numpy as np
 
 from PIL import Image
+import copy
 
 
 class VectorQuantizer:
@@ -84,9 +85,13 @@ class VectorQuantizer:
         # image_matrix: (num_blocks, 1, vector_dim)
         # codebook_matrix: (1, codebook_size, vector_dim)
         # Result: (num_blocks, codebook_size, vector_dim)
+        # np.newaxis serves to make the dimensions of both matrices the same so that we can calculate with broadcasting.
+        # tl;dr: this creates image-codebook difference.
         differences = np.abs(image_matrix[:, np.newaxis, :] - codebook_matrix[np.newaxis, :, :])
         
         # Sum over vector dimension to get L1 distances: (num_blocks, codebook_size)
+        # gets the sum of the distances for a given block.
+        #[[1,2], [3,4]] it will return [[3], [7]]
         distances = np.sum(differences, axis=2)
         
         # Find minimum distance index for each block
@@ -148,12 +153,16 @@ class VectorQuantizer:
         while len(codebook) < size:
             codebook = self.__create_new_level(codebook)
 
-
+        previous_codebook = None
         # iterate LBG refinement
         for _ in range(15): # usually needs from 10 to 30 iterations to get the the final codes
+            previous_codebook = copy.deepcopy(codebook)
             assignments = self.__assign_blocks_to_codebook(image_vectors, codebook)
             codebook = self.__recalculate_codebook(image_vectors, assignments, codebook, len(codebook))
-        
+            if codebook == previous_codebook:
+                print('codebook did not change')
+                break
+
 
         return codebook , assignments
 

@@ -164,6 +164,7 @@ def reconstruct_image(
     block_idx = 0
     for y in range(0, img_height, block_height):
         for x in range(0, img_width, block_width):
+            # crop blocks that are too large.
             right = min(x + block_width, img_width)
             bottom = min(y + block_height, img_height)
             
@@ -174,6 +175,7 @@ def reconstruct_image(
             # Handle edge blocks that might be smaller
             actual_block_w = right - x
             actual_block_h = bottom - y
+            # crop and reshape back to square block.
             block = vector[:actual_block_w * actual_block_h].reshape((actual_block_h, actual_block_w))
             
             # Clip values to valid uint8 range and convert
