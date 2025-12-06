@@ -131,7 +131,20 @@ class VectorQuantizer:
             new_codebook.append(average_vector)
 
         return new_codebook
-   
+
+    def assignments_to_bytes(self, assignments, bits):
+        arr = np.asarray(assignments, dtype=np.uint32)
+        maxv = (1 << bits) - 1
+        if np.any(arr > maxv):
+            raise ValueError("value exceeds bit-width")
+
+        # Create matrix of bits: shape (N, bits)
+        shifts = np.arange(bits - 1, -1, -1, dtype=np.uint32)
+        bit_matrix = ((arr[:, None] >> shifts) & 1).astype(np.uint8)
+
+        # Flatten bitstream → pack into bytes
+        flat_bits = bit_matrix.reshape(-1)
+        return np.packbits(flat_bits)
 
     def compress(
         self, 
@@ -159,18 +172,27 @@ class VectorQuantizer:
             previous_codebook = copy.deepcopy(codebook)
             assignments = self.__assign_blocks_to_codebook(image_vectors, codebook)
             codebook = self.__recalculate_codebook(image_vectors, assignments, codebook, len(codebook))
-            if codebook == previous_codebook:
+            if np.array_equal(codebook, previous_codebook):
                 print('codebook did not change')
                 break
 
+        assignment_bytes = self.assignments_to_bytes(assignments, amount_of_levels)
+        return codebook , assignment_bytes
 
-        return codebook , assignments
+    def decompress(self, codebook: List[np.ndarray], packed_assignments):
+        # 1. Unpack bits back to 0/1 array
+        flat_bits = np.unpackbits(packed_assignments)
+        bits = int(np.sqrt(len(codebook)))
 
-    def decompress(self, codebook: List[np.ndarray], assignments: List[int]):
-        ret = []
-        for assignment in assignments:
-            ret.append(codebook[assignment])
-        return ret
+        # 2. Reshape into rows of 'bits' per assignment
+        bit_matrix = flat_bits.reshape(-1, bits)
+
+        # 3. Convert each bit-row back into integer assignment
+        shifts = np.arange(bits - 1, -1, -1, dtype=np.uint32)
+        assignments = (bit_matrix << shifts).sum(axis=1)
+
+        # 4. Use integers to reconstruct output
+        return [codebook[a] for a in assignments]
 
 
 if __name__ == '__main__':
@@ -203,6 +225,7 @@ if __name__ == '__main__':
     amount_of_levels = 2
 
     codebook, assignments = VectorQuantizer().compress(img, block_w, block_h, amount_of_levels)
+    VectorQuantizer().decompress(codebook, assignments)
 
     print("--- VQ Compression Results (Lecture Example) ---")
     print(f"Original Image Size: {img.size}")
