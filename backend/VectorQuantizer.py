@@ -153,6 +153,7 @@ class VectorQuantizer:
         source_image_blocks = self.__split_image_into_blocks(img, block_w, block_h)
 
         image_vectors = self.__blocks_to_vectors(source_image_blocks)
+        num_assignments = len(image_vectors)  # Store original count
 
         first_centroid = self.__create_first_level(image_vectors)
         codebook = [np.array(first_centroid)]
@@ -172,23 +173,26 @@ class VectorQuantizer:
                 break
 
         assignment_bytes = self.assignments_to_bytes(assignments, amount_of_levels)
-        return codebook, assignment_bytes
+        return codebook, assignment_bytes, num_assignments
 
-    def decompress(self, codebook: List[np.ndarray], packed_assignments):
+    def decompress(self, codebook: List[np.ndarray], packed_assignments, num_assignments):
         # 1. Unpack bits back to 0/1 array
         flat_bits = np.unpackbits(packed_assignments)
-        bits = int(np.sqrt(len(codebook)))
+        bits = int(np.log2(len(codebook)))
 
-        # 2. Reshape into rows of 'bits' per assignment
+        # 2. Trim to actual number of bits (remove padding)
+        total_bits = num_assignments * bits
+        flat_bits = flat_bits[:total_bits]
+
+        # 3. Reshape into rows of 'bits' per assignment
         bit_matrix = flat_bits.reshape(-1, bits)
 
-        # 3. Convert each bit-row back into integer assignment
+        # 4. Convert each bit-row back into integer assignment
         shifts = np.arange(bits - 1, -1, -1, dtype=np.uint32)
         assignments = (bit_matrix << shifts).sum(axis=1)
 
-        # 4. Use integers to reconstruct output
+        # 5. Use integers to reconstruct output
         return [codebook[a] for a in assignments]
-
 
 if __name__ == '__main__':
 
